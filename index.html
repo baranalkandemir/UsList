@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shared Bucket List</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #fef6f0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+  .container { background: #fff; padding: 20px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 350px; }
+  h1 { text-align: center; color: #ff6b6b; }
+  input { width: 70%; padding: 8px; margin-right: 5px; border-radius: 5px; border: 1px solid #ccc; }
+  button { padding: 8px 12px; border: none; border-radius: 5px; background-color: #ff6b6b; color: #fff; cursor: pointer; }
+  ul { list-style: none; padding: 0; margin-top: 20px; }
+  li { padding: 8px; margin-bottom: 8px; background: #fceae9; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+  .completed { text-decoration: line-through; opacity: 0.6; }
+  li button { background: #ff8787; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Bucket List</h1>
+  <input type="text" id="itemInput" placeholder="Yeni madde ekle...">
+  <button id="addBtn">Ekle</button>
+  <ul id="bucketList"></ul>
+</div>
+
+<!-- Firebase Compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+  // 🔹 Firebase config → kendi proje bilgilerini buraya yapıştır
+  const firebaseConfig = {
+    apiKey: "AIzaSyAno-PGGU1YTHEgQXvm4jnW2JpqWOezFac",
+    authDomain: "uslist-8ac7a.firebaseapp.com",
+    databaseURL: "https://uslist-8ac7a-default-rtdb.firebaseio.com",
+    projectId: "uslist-8ac7a",
+    storageBucket: "uslist-8ac7a.appspot.com",
+    messagingSenderId: "404246675807",
+    appId: "1:404246675807:web:fdb214fed0ff817bdeb6ea",
+    measurementId: "G-8HZGPTTE31"
+  };
+
+  // Firebase başlat
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const listRef = db.ref('bucketList');
+
+  const input = document.getElementById('itemInput');
+  const addBtn = document.getElementById('addBtn');
+  const list = document.getElementById('bucketList');
+
+  // Listeyi ekrana yazdır
+  function renderList(items) {
+    list.innerHTML = '';
+    for (let key in items) {
+      const item = items[key];
+      const li = document.createElement('li');
+      li.className = item.completed ? 'completed' : '';
+      li.innerHTML = `
+        <span>${item.text}</span>
+        <div>
+          <button onclick="toggleComplete('${key}', ${!item.completed})">✓</button>
+          <button onclick="deleteItem('${key}')">🗑️</button>
+        </div>
+      `;
+      list.appendChild(li);
+    }
+  }
+
+  // Realtime olarak veriyi dinle
+  listRef.on('value', snapshot => {
+    const data = snapshot.val() || {};
+    renderList(data);
+  });
+
+  function addItem() {
+    const text = input.value.trim();
+    if(text) {
+      const newItemRef = listRef.push();
+      newItemRef.set({ text, completed: false });
+      input.value = '';
+    }
+  }
+
+  function toggleComplete(key, status) {
+    listRef.child(key).update({ completed: status });
+  }
+
+  function deleteItem(key) {
+    listRef.child(key).remove();
+  }
+
+  addBtn.addEventListener('click', addItem);
+  input.addEventListener('keypress', e => { if(e.key === 'Enter') addItem(); });
+</script>
+</body>
+</html>
+
+
