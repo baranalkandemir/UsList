@@ -5,6 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shared Bucket List</title>
 <style>
+  li {
+  padding: 8px;
+  margin-bottom: 8px;
+  background: #fceae9;
+  border-radius: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: fadeIn 0.4s ease forwards;
+  transition: all 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+li.completed {
+  text-decoration: line-through;
+  opacity: 0.7;
+  transform: scale(0.98);
+  transition: all 0.3s ease;
+}
+
   body { font-family: Arial, sans-serif; background: #fef6f0; display: flex; justify-content: center; align-items: center; height: 100vh; }
   .container { background: #fff; padding: 20px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 350px; }
   h1 { text-align: center; color: #ff6b6b; }
@@ -29,7 +61,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-  // 🔹 Firebase config → kendi proje bilgilerini buraya yapıştır
+
   const firebaseConfig = {
     apiKey: "AIzaSyAno-PGGU1YTHEgQXvm4jnW2JpqWOezFac",
     authDomain: "uslist-8ac7a.firebaseapp.com",
@@ -41,7 +73,7 @@
     measurementId: "G-8HZGPTTE31"
   };
 
-  // Firebase başlat
+
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
   const listRef = db.ref('bucketList');
@@ -68,7 +100,7 @@
     }
   }
 
-  // Realtime olarak veriyi dinle
+
   listRef.on('value', snapshot => {
     const data = snapshot.val() || {};
     renderList(data);
