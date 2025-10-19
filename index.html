@@ -5,45 +5,78 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shared Bucket List</title>
 <style>
-  li {
-  padding: 8px;
-  margin-bottom: 8px;
-  background: #fceae9;
-  border-radius: 5px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  /* animasyonla ilgili satırlar */
-  opacity: 0;
-  transform: translateY(25px);
-  animation: fadeSlideIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  transition: transform 0.3s ease, opacity 0.3s ease;
-}
-
-@keyframes fadeSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(25px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-li.completed {
-  text-decoration: line-through;
-  opacity: 0.6;
-  transform: scale(0.96);
-  transition: all 0.3s ease;
-}
   body { font-family: Arial, sans-serif; background: #fef6f0; display: flex; justify-content: center; align-items: center; height: 100vh; }
   .container { background: #fff; padding: 20px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 350px; }
   h1 { text-align: center; color: #ff6b6b; }
   input { width: 70%; padding: 8px; margin-right: 5px; border-radius: 5px; border: 1px solid #ccc; }
   button { padding: 8px 12px; border: none; border-radius: 5px; background-color: #ff6b6b; color: #fff; cursor: pointer; }
-  ul { list-style: none; padding: 0; margin-top: 20px; }
+  ul { list-style: none; padding: 0; margin-top: 20px; position: relative; }
+  li { padding: 8px; margin-bottom: 8px; background: #fceae9; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; overflow: visible; transform-origin: center; position: relative; }
+  .completed { text-decoration: line-through; opacity: 0.6; transform: translateX(2px); }
+  li button { background: #ff8787; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-left: 6px; }
+
+  /* Tamamlama vurgu animasyonu */
+  li.completing { animation: completePop 280ms ease forwards; }
+  @keyframes completePop {
+    0% { transform: scale(1); background-color: #fceae9; }
+    50% { transform: scale(1.03); background-color: #e6fff0; }
+    100% { transform: scale(1); background-color: #fceae9; }
+  }
+
+  /* Yeni: döndürüp uçuran silme animasyonu (swirl-away) */
+  li.fade-out {
+    animation: swirlAway 520ms cubic-bezier(.2,.9,.2,1) forwards;
+    transform-origin: center;
+    will-change: transform, opacity, filter, height;
+    z-index: 5;
+  }
+
+  @keyframes swirlAway {
+    0% {
+      opacity: 1;
+      transform: rotate(0deg) translateX(0) translateY(0) scale(1);
+      filter: none;
+      height: auto; margin-bottom: 8px; padding-top: 8px; padding-bottom: 8px;
+    }
+    25% {
+      transform: rotate(8deg) translateX(8px) translateY(-6px) scale(0.98) skew(-3deg,-2deg);
+      filter: blur(0.2px) brightness(0.98);
+    }
+    55% {
+      transform: rotate(-22deg) translateX(48px) translateY(-28px) scale(0.72) skew(6deg,4deg);
+      opacity: 0.7;
+      filter: blur(0.9px) grayscale(0.08);
+    }
+    85% {
+      transform: rotate(32deg) translateX(120px) translateY(-50px) scale(0.38) skew(10deg,6deg);
+      opacity: 0.2;
+      filter: blur(1.6px) grayscale(0.35);
+    }
+    100% {
+      transform: rotate(48deg) translateX(220px) translateY(-90px) scale(0.18) skew(14deg,9deg);
+      opacity: 0;
+      filter: blur(2.4px) grayscale(0.6);
+      height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0;
+    }
+  }
+
+  /* Ekleme (pop-in) animasyonu */
+  li.adding { animation: popIn 260ms cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes popIn {
+    0% { transform: scale(0.96) translateY(6px); opacity: 0; }
+    60% { transform: scale(1.06) translateY(-2px); opacity: 1; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+  }
+  /* clone used for robust delete animation (absolute positioned inside #bucketList) */
+  .item-clone {
+    position: absolute;
+    left: 0; top: 0;
+    margin: 0;
+    pointer-events: none;
+    z-index: 1000;
+    box-sizing: border-box;
+    transform-origin: center;
+  }
 </style>
 </head>
 <body>
@@ -80,20 +113,49 @@ li.completed {
   const addBtn = document.getElementById('addBtn');
   const list = document.getElementById('bucketList');
 
-  // Listeyi ekrana yazdır
+  // Son eklenen öğenin anahtarı (ekle animasyonu için)
+  let lastAddedKey = null;
+
+  // Listeyi ekrana yazdır (event listener'lar ile)
   function renderList(items) {
     list.innerHTML = '';
     for (let key in items) {
       const item = items[key];
       const li = document.createElement('li');
-      li.className = item.completed ? 'completed' : '';
-      li.innerHTML = `
-        <span>${item.text}</span>
-        <div>
-          <button onclick="toggleComplete('${key}', ${!item.completed})">✓</button>
-          <button onclick="deleteItem('${key}')">🗑️</button>
-        </div>
-      `;
+      li.dataset.key = key;
+      if (item.completed) li.classList.add('completed');
+
+      // Eğer bu anahtar son eklenen ise ekle animasyonu uygula
+      if (key === lastAddedKey) {
+        li.classList.add('adding');
+        const onAnimEndAdd = () => {
+          li.classList.remove('adding');
+          li.removeEventListener('animationend', onAnimEndAdd);
+          lastAddedKey = null;
+        };
+        li.addEventListener('animationend', onAnimEndAdd);
+      }
+
+      const span = document.createElement('span');
+      span.textContent = item.text;
+
+      const controls = document.createElement('div');
+
+      const completeBtn = document.createElement('button');
+      completeBtn.textContent = '✓';
+      completeBtn.title = item.completed ? 'Tamamlamayı kaldır' : 'Tamamla';
+      completeBtn.addEventListener('click', () => animateToggleComplete(key, !item.completed));
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = '🗑️';
+      deleteBtn.title = 'Sil';
+      deleteBtn.addEventListener('click', () => animateDelete(key, li));
+
+      controls.appendChild(completeBtn);
+      controls.appendChild(deleteBtn);
+
+      li.appendChild(span);
+      li.appendChild(controls);
       list.appendChild(li);
     }
   }
@@ -109,16 +171,102 @@ li.completed {
     if(text) {
       const newItemRef = listRef.push();
       newItemRef.set({ text, completed: false });
+      // animasyon için son eklenen anahtarı sakla
+      lastAddedKey = newItemRef.key;
       input.value = '';
+
+      // bazı durumlarda render hemen gelmeyebilir, DOM'a eklenince kesinlikle animasyon uygula
+      setTimeout(() => {
+        const el = list.querySelector(`[data-key="${lastAddedKey}"]`);
+        if (el && !el.classList.contains('adding')) {
+          el.classList.add('adding');
+          const onAnimEnd = () => {
+            el.classList.remove('adding');
+            el.removeEventListener('animationend', onAnimEnd);
+            lastAddedKey = null;
+          };
+          el.addEventListener('animationend', onAnimEnd);
+        }
+      }, 60);
     }
   }
 
-  function toggleComplete(key, status) {
-    listRef.child(key).update({ completed: status });
+  // Tamamlama animasyonlı güncelleme
+  function animateToggleComplete(key, status) {
+    const li = list.querySelector(`[data-key="${key}"]`);
+    if (!li) {
+      // fallback: doğrudan güncelle
+      listRef.child(key).update({ completed: status });
+      return;
+    }
+
+    // görsel animasyon
+    li.classList.add('completing');
+    // hemen görsel tamamlandı sınıfı ayarla (kullanıcı anlık geri bildirim görsün)
+    if (status) li.classList.add('completed'); else li.classList.remove('completed');
+
+    // animasyon bitişinde sınıfı temizle
+    const onAnimEnd = () => {
+      li.classList.remove('completing');
+      li.removeEventListener('animationend', onAnimEnd);
+    };
+    li.addEventListener('animationend', onAnimEnd);
+
+    // veri tabanını animasyon sonrası güncelle (küçük gecikme)
+    setTimeout(() => {
+      listRef.child(key).update({ completed: status });
+    }, 280);
   }
 
-  function deleteItem(key) {
-    listRef.child(key).remove();
+  // Silme animasyonlu silme: klon oluşturup klonu animasyonla oynat, orijinali gizle,
+  // animasyon bittiğinde veritabanından sil ve klonu kaldır.
+  function animateDelete(key, liElement) {
+    const el = liElement || list.querySelector(`[data-key="${key}"]`);
+    if (!el) {
+      // fallback: doğrudan sil
+      listRef.child(key).remove();
+      return;
+    }
+
+    // eğer zaten siliniyorsa tekrar tetikleme
+    if (el.dataset.deleting === '1') return;
+    el.dataset.deleting = '1';
+
+    // Hesapla: orijinalin boyut ve pozisyonu göre klonu absolute yerleştir
+    const rect = el.getBoundingClientRect();
+    const listRect = list.getBoundingClientRect();
+
+    // Klon oluştur
+    const clone = el.cloneNode(true);
+    clone.classList.remove('adding','completing');
+    clone.classList.add('item-clone','fade-out');
+
+    // Inline stil ile absolute konumlandır
+    clone.style.width = rect.width + 'px';
+    clone.style.height = rect.height + 'px';
+    // position relative #bucketList üzerine yerleştirmek için offset hesapla
+    clone.style.left = (rect.left - listRect.left) + 'px';
+    clone.style.top = (rect.top - listRect.top) + 'px';
+
+    // Orijinali görünmez yap (layout bozulmasın diye visibility kullan)
+    el.style.visibility = 'hidden';
+
+    // #bucketList'e klonu ekle
+    list.appendChild(clone);
+
+    // animasyon bittikten sonra DB'den sil ve klonu kaldır
+    const onAnimEnd = () => {
+      clone.removeEventListener('animationend', onAnimEnd);
+      // veritabanından sil
+      listRef.child(key).remove().catch(() => {});
+      // küçük gecikmeyle DOM temizle
+      requestAnimationFrame(() => {
+        if (clone.parentNode) clone.parentNode.removeChild(clone);
+        // orijinal zaten re-render ile kaybolacaktır; ama eğer kalırsa temizle
+        if (el.parentNode) el.parentNode.removeChild(el);
+      });
+    };
+    clone.addEventListener('animationend', onAnimEnd);
   }
 
   addBtn.addEventListener('click', addItem);
@@ -126,7 +274,5 @@ li.completed {
 </script>
 </body>
 </html>
-
-
 
 
