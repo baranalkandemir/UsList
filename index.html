@@ -7,7 +7,68 @@
 <style>
   body { font-family: Arial, sans-serif; background: #fef6f0; display: flex; justify-content: center; align-items: center; height: 100vh; }
   .container { background: #fff; padding: 20px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 350px; }
-  h1 { text-align: center; color: #ff6b6b; }
+  h1 { text-align: center; color: #ff6b6b; margin-bottom: 20px; }
+  
+  /* İlerleme Çubuğu Stilleri */
+  .progress-container {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+  }
+  
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  
+  #progressText {
+    color: #495057;
+  }
+  
+  #progressPercentage {
+    color: #ff6b6b;
+    font-size: 16px;
+  }
+  
+  .progress-bar {
+    width: 100%;
+    height: 12px;
+    background: #e9ecef;
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6b6b, #ff8e8e, #ffa8a8);
+    border-radius: 6px;
+    width: 0%;
+    transition: width 0.5s ease-in-out;
+    position: relative;
+  }
+  
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: shimmer 2s infinite;
+  }
+  
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
   input { width: 70%; padding: 8px; margin-right: 5px; border-radius: 5px; border: 1px solid #ccc; }
   button { padding: 8px 12px; border: none; border-radius: 5px; background-color: #ff6b6b; color: #fff; cursor: pointer; }
   ul { list-style: none; padding: 0; margin-top: 20px; position: relative; }
@@ -77,11 +138,82 @@
     box-sizing: border-box;
     transform-origin: center;
   }
+  /* heart pop for newly added items */
+  /* simpler emoji-based heart to avoid clip-path issues */
+  .heart {
+    position: fixed;
+    pointer-events: none;
+    transform-origin: center;
+    font-size: 24px;
+    line-height: 1;
+    color: #ff3b61;
+    text-shadow: 0 2px 8px rgba(255,59,97,0.4);
+    opacity: 0; /* start hidden; animation will show it */
+    display: inline-block;
+    z-index: 1000;
+  }
+  .heart.pop {
+    animation: heartPop 800ms ease-out forwards;
+  }
+  @keyframes heartPop {
+    0% { 
+      transform: translateX(-50%) scale(0.5) translateY(0px); 
+      opacity: 0; 
+    }
+    50% { 
+      transform: translateX(-50%) scale(1.2) translateY(-20px); 
+      opacity: 1; 
+    }
+    100% { 
+      transform: translateX(-50%) scale(0.8) translateY(-40px); 
+      opacity: 0; 
+    }
+  }
+  
+  /* Confetti effect for completed items */
+  .confetti {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    font-size: 20px;
+    animation: confettiFall 4s ease-out forwards;
+  }
+  
+  @keyframes confettiFall {
+    0% {
+      transform: translateY(-100vh) rotate(0deg) scale(0.5);
+      opacity: 1;
+    }
+    20% {
+      transform: translateY(-50vh) rotate(180deg) scale(1.2);
+      opacity: 1;
+    }
+    50% {
+      transform: translateY(20vh) rotate(360deg) scale(1);
+      opacity: 0.8;
+    }
+    100% {
+      transform: translateY(100vh) rotate(720deg) scale(0.3);
+      opacity: 0;
+    }
+  }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>Bucket List</h1>
+  
+  <!-- İlerleme Çubuğu -->
+  <div class="progress-container">
+    <div class="progress-info">
+      <span id="progressText">0 / 0 tamamlandı</span>
+      <span id="progressPercentage">0%</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+  
   <input type="text" id="itemInput" placeholder="Yeni madde ekle...">
   <button id="addBtn">Ekle</button>
   <ul id="bucketList"></ul>
@@ -92,6 +224,9 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
+  // JavaScript başlatıldı
+  console.log('=== JAVASCRIPT ÇALIŞIYOR ===');
+  
   // 🔹 Firebase config → kendi proje bilgilerini buraya yapıştır
   const firebaseConfig = {
     apiKey: "AIzaSyAno-PGGU1YTHEgQXvm4jnW2JpqWOezFac",
@@ -104,17 +239,66 @@
     measurementId: "G-8HZGPTTE31"
   };
 
-  // Firebase başlat
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
-  const listRef = db.ref('bucketList');
+  // Firebase başlat (güvenli versiyon)
+  console.log('Firebase başlatılıyor...');
+  let items = {}; // Local storage için
+  let lastAddedKey = null;
+  let db = null;
+  let listRef = null;
+  
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    listRef = db.ref('bucketList');
+    console.log('Firebase başarıyla başlatıldı!');
+    
+    // Firebase'den veriyi dinle
+    listRef.on('value', snapshot => {
+      const data = snapshot.val() || {};
+      items = data;
+      renderList(items);
+    });
+  } catch (error) {
+    console.error('Firebase hatası, offline modda çalışıyor:', error);
+    // Offline modda çalış
+    loadItems();
+  }
 
   const input = document.getElementById('itemInput');
   const addBtn = document.getElementById('addBtn');
   const list = document.getElementById('bucketList');
+  
+  // İlerleme çubuğu elementleri
+  const progressText = document.getElementById('progressText');
+  const progressPercentage = document.getElementById('progressPercentage');
+  const progressFill = document.getElementById('progressFill');
 
-  // Son eklenen öğenin anahtarı (ekle animasyonu için)
-  let lastAddedKey = null;
+  // Son eklenen öğenin anahtarı (ekle animasyonu için) - zaten yukarıda tanımlandı
+
+  // İlerleme çubuğunu güncelle
+  function updateProgressBar(items) {
+    const totalItems = Object.keys(items).length;
+    const completedItems = Object.values(items).filter(item => item.completed).length;
+    const percentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+    
+    // Metinleri güncelle
+    progressText.textContent = `${completedItems} / ${totalItems} tamamlandı`;
+    progressPercentage.textContent = `${percentage}%`;
+    
+    // Çubuğu güncelle
+    progressFill.style.width = `${percentage}%`;
+    
+    // Renk değişimi (0-33% kırmızı, 34-66% turuncu, 67-100% yeşil)
+    if (percentage === 0) {
+      progressFill.style.background = 'linear-gradient(90deg, #e9ecef, #e9ecef)';
+    } else if (percentage <= 33) {
+      progressFill.style.background = 'linear-gradient(90deg, #ff6b6b, #ff8e8e, #ffa8a8)';
+    } else if (percentage <= 66) {
+      progressFill.style.background = 'linear-gradient(90deg, #ffa726, #ffb74d, #ffcc80)';
+    } else {
+      progressFill.style.background = 'linear-gradient(90deg, #66bb6a, #81c784, #a5d6a7)';
+    }
+  }
 
   // Listeyi ekrana yazdır (event listener'lar ile)
   function renderList(items) {
@@ -134,6 +318,9 @@
           lastAddedKey = null;
         };
         li.addEventListener('animationend', onAnimEndAdd);
+
+        // Heart animasyonu
+        showHeartAnimation();
       }
 
       const span = document.createElement('span');
@@ -158,36 +345,108 @@
       li.appendChild(controls);
       list.appendChild(li);
     }
+    
+    // İlerleme çubuğunu güncelle
+    updateProgressBar(items);
   }
 
-  // Realtime olarak veriyi dinle
-  listRef.on('value', snapshot => {
-    const data = snapshot.val() || {};
-    renderList(data);
-  });
+  // Local storage'dan veriyi yükle (offline mod için)
+  function loadItems() {
+    const saved = localStorage.getItem('bucketList');
+    if (saved) {
+      items = JSON.parse(saved);
+    }
+    renderList(items);
+  }
+
+  // Heart animasyonu fonksiyonu
+  function showHeartAnimation() {
+    // Çok basit bir heart elementi
+    const heart = document.createElement('div');
+    heart.innerHTML = '❤️';
+    heart.style.cssText = `
+      position: fixed;
+      font-size: 30px;
+      color: red;
+      z-index: 9999;
+      pointer-events: none;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      animation: heartBounce 1s ease-out forwards;
+    `;
+    
+    // CSS animasyonu inline olarak ekle
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes heartBounce {
+        0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+        50% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; }
+        100% { transform: translate(-50%, -50%) scale(1) translateY(-100px); opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    document.body.appendChild(heart);
+    
+    // 2 saniye sonra kaldır
+    setTimeout(() => {
+      if (heart.parentNode) {
+        heart.parentNode.removeChild(heart);
+      }
+      if (style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+    }, 2000);
+  }
+
+  // Confetti animasyonu fonksiyonu
+  function showConfettiAnimation() {
+    const confettiEmojis = ['🎉', '🎊', '✨', '🌟', '💫', '⭐', '🎈', '🎁', '🎂', '🍰', '🎀', '🎆', '🎇', '🌈', '💎', '🔥'];
+    const confettiCount = 50; // 20'den 50'ye çıkarıldı
+    
+    for (let i = 0; i < confettiCount; i++) {
+      setTimeout(() => {
+        const confetti = document.createElement('div');
+        confetti.className = 'confetti';
+        confetti.innerHTML = confettiEmojis[Math.floor(Math.random() * confettiEmojis.length)];
+        
+        // Rastgele pozisyon ve renk
+        confetti.style.left = Math.random() * 100 + 'vw';
+        confetti.style.color = `hsl(${Math.random() * 360}, 70%, 60%)`;
+        confetti.style.fontSize = (Math.random() * 15 + 20) + 'px'; // Daha büyük boyutlar
+        confetti.style.textShadow = `0 0 10px rgba(255,255,255,0.8)`; // Parlak efekt
+        
+        document.body.appendChild(confetti);
+        
+        // 4 saniye sonra kaldır (daha uzun süre)
+        setTimeout(() => {
+          if (confetti.parentNode) {
+            confetti.parentNode.removeChild(confetti);
+          }
+        }, 4000);
+      }, i * 30); // Her confetti 30ms arayla düşer (daha hızlı)
+    }
+  }
 
   function addItem() {
     const text = input.value.trim();
     if(text) {
-      const newItemRef = listRef.push();
-      newItemRef.set({ text, completed: false });
-      // animasyon için son eklenen anahtarı sakla
-      lastAddedKey = newItemRef.key;
+      if (listRef) {
+        // Firebase kullan - lastAddedKey'i hemen ayarla
+        const newItemRef = listRef.push();
+        lastAddedKey = newItemRef.key; // Hemen ayarla
+        newItemRef.set({ text, completed: false });
+      } else {
+        // Offline mod
+        const key = Date.now().toString();
+        items[key] = { text, completed: false };
+        localStorage.setItem('bucketList', JSON.stringify(items));
+        lastAddedKey = key;
+        renderList(items);
+      }
+      
       input.value = '';
-
-      // bazı durumlarda render hemen gelmeyebilir, DOM'a eklenince kesinlikle animasyon uygula
-      setTimeout(() => {
-        const el = list.querySelector(`[data-key="${lastAddedKey}"]`);
-        if (el && !el.classList.contains('adding')) {
-          el.classList.add('adding');
-          const onAnimEnd = () => {
-            el.classList.remove('adding');
-            el.removeEventListener('animationend', onAnimEnd);
-            lastAddedKey = null;
-          };
-          el.addEventListener('animationend', onAnimEnd);
-        }
-      }, 60);
     }
   }
 
@@ -196,7 +455,12 @@
     const li = list.querySelector(`[data-key="${key}"]`);
     if (!li) {
       // fallback: doğrudan güncelle
-      listRef.child(key).update({ completed: status });
+      if (listRef) {
+        listRef.child(key).update({ completed: status });
+      } else {
+        items[key].completed = status;
+        localStorage.setItem('bucketList', JSON.stringify(items));
+      }
       return;
     }
 
@@ -205,6 +469,11 @@
     // hemen görsel tamamlandı sınıfı ayarla (kullanıcı anlık geri bildirim görsün)
     if (status) li.classList.add('completed'); else li.classList.remove('completed');
 
+    // Eğer tamamlanıyorsa confetti animasyonu göster
+    if (status) {
+      showConfettiAnimation();
+    }
+
     // animasyon bitişinde sınıfı temizle
     const onAnimEnd = () => {
       li.classList.remove('completing');
@@ -212,9 +481,14 @@
     };
     li.addEventListener('animationend', onAnimEnd);
 
-    // veri tabanını animasyon sonrası güncelle (küçük gecikme)
+    // veriyi animasyon sonrası güncelle (küçük gecikme)
     setTimeout(() => {
-      listRef.child(key).update({ completed: status });
+      if (listRef) {
+        listRef.child(key).update({ completed: status });
+      } else {
+        items[key].completed = status;
+        localStorage.setItem('bucketList', JSON.stringify(items));
+      }
     }, 280);
   }
 
@@ -224,7 +498,12 @@
     const el = liElement || list.querySelector(`[data-key="${key}"]`);
     if (!el) {
       // fallback: doğrudan sil
-      listRef.child(key).remove();
+      if (listRef) {
+        listRef.child(key).remove();
+      } else {
+        delete items[key];
+        localStorage.setItem('bucketList', JSON.stringify(items));
+      }
       return;
     }
 
@@ -254,11 +533,16 @@
     // #bucketList'e klonu ekle
     list.appendChild(clone);
 
-    // animasyon bittikten sonra DB'den sil ve klonu kaldır
+    // animasyon bittikten sonra veritabanından sil ve klonu kaldır
     const onAnimEnd = () => {
       clone.removeEventListener('animationend', onAnimEnd);
       // veritabanından sil
-      listRef.child(key).remove().catch(() => {});
+      if (listRef) {
+        listRef.child(key).remove();
+      } else {
+        delete items[key];
+        localStorage.setItem('bucketList', JSON.stringify(items));
+      }
       // küçük gecikmeyle DOM temizle
       requestAnimationFrame(() => {
         if (clone.parentNode) clone.parentNode.removeChild(clone);
@@ -274,5 +558,3 @@
 </script>
 </body>
 </html>
-
-
